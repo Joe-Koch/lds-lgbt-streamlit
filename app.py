@@ -44,7 +44,6 @@ def merge_cluster_titles(df, cluster_info_df):
 
 # Load texts for a selected cluster where is_central_member is True
 def load_texts_for_cluster(selected_title, cluster_info_df):
-    # Find the cluster number based on the selected title
     cluster_num = cluster_info_df[cluster_info_df["title"] == selected_title][
         "cluster"
     ].iloc[0]
@@ -63,7 +62,12 @@ def load_texts_for_cluster(selected_title, cluster_info_df):
 
 
 # Create an interactive Altair chart
-def create_chart(df):
+def create_chart(df, subreddit):
+    chart_title = (
+        f"Cluster Frequency Over Time for subreddit r/{subreddit}"
+        if subreddit != "All Subreddits"
+        else "Cluster Frequency Over Time"
+    )
     highlight = alt.selection(
         type="single", on="mouseover", fields=["title"], nearest=True
     )
@@ -80,7 +84,7 @@ def create_chart(df):
                 alt.Tooltip("month:T", title="Month"),
             ],
         )
-        .properties(width=800, height=400)
+        .properties(width=800, height=400, title=chart_title)
         .add_selection(highlight)
     )
     return chart
@@ -113,6 +117,7 @@ clusters_to_include = {
 }
 df = df[df["cluster"].isin(clusters_to_include)]
 df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+
 monthly_frequencies = (
     df.groupby(["month", "title", "subreddit"]).size().reset_index(name="frequency")
 )
@@ -128,9 +133,8 @@ if selected_subreddit != "All Subreddits":
 else:
     filtered_df = monthly_frequencies
 
-# Display the frequency chart
-st.title("Cluster Frequency Over Time")
-st.altair_chart(create_chart(filtered_df), use_container_width=True)
+# Display the frequency chart with dynamic title based on selected subreddit
+st.altair_chart(create_chart(filtered_df, selected_subreddit), use_container_width=True)
 
 # Dropdown for selecting a cluster to view title and summary
 cluster_titles = ["Select a Cluster"] + sorted(
