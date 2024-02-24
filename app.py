@@ -1,31 +1,27 @@
-import streamlit as st
-import pandas as pd
 import altair as alt
 import duckdb
+import pandas as pd
+import streamlit as st
 
 
-# Function to load data from DuckDB
+# Function to load raw data from DuckDB
 def load_data():
     conn = duckdb.connect("streamlit.duckdb")
     query = """
     SELECT 
         date, 
         cluster, 
-        subreddit,
-        COUNT(*) AS frequency
+        subreddit
     FROM 
         streamlit.reddit
-    GROUP BY 
-        date, cluster, subreddit
-    ORDER BY 
-        date ASC
     """
     df = conn.execute(query).fetchdf()
     conn.close()
+    df["date"] = pd.to_datetime(df["date"], unit="s")
     return df
 
 
-# Load cluster information
+# Function to load cluster information
 def load_cluster_info():
     conn = duckdb.connect("streamlit.duckdb")
     query = """
@@ -41,6 +37,7 @@ def load_cluster_info():
     return cluster_info_df
 
 
+# Function to load texts for a selected cluster where is_central_member is True
 def load_texts_for_cluster(cluster):
     conn = duckdb.connect("streamlit.duckdb")
     query = f"""
@@ -56,18 +53,23 @@ def load_texts_for_cluster(cluster):
     return texts_df
 
 
-# Interactive Altair chart
+# Function to create an interactive Altair chart
 def create_chart(df):
     highlight = alt.selection(
         type="single", on="mouseover", fields=["cluster"], nearest=True
     )
     base = (
         alt.Chart(df)
+        .mark_line(point=True)
         .encode(
-            x="date:T",
+            x=alt.X("month:T", axis=alt.Axis(title="Date", format="%Y-%m")),
             y="frequency:Q",
             color="cluster:N",
-            tooltip=["cluster:N", "frequency:Q", "date:T"],
+            tooltip=[
+                "cluster:N",
+                "frequency:Q",
+                alt.Tooltip("month:T", title="month", format="%Y-%m"),
+            ],
         )
         .properties(width=800, height=400)
     )
@@ -82,39 +84,44 @@ def create_chart(df):
     return (lines + points).add_selection(highlight)
 
 
+# Main script to load data and create visualizations
 df = load_data()
-cluster_info_df = load_cluster_info()
-df["date"] = pd.to_datetime(df["date"], unit="s")
+clusters_to_omit = (0, 1, 2, 4, 6, 7, 11, 14, 20, 21, 24, 27, 29, 30, 31)
+df = df[~df["cluster"].isin(clusters_to_omit)]
+df["month"] = df["date"].dt.to_period("M")
+monthly_frequencies = (
+    df.groupby(["month", "cluster", "subreddit"]).size().reset_index(name="frequency")
+)
 
-# Prepare the subreddit selection dropdown
+cluster_info_df = load_cluster_info()
+
+# Sidebar for subreddit selection
 subreddit_list = ["All Subreddits"] + [
     "r/" + subreddit for subreddit in sorted(df["subreddit"].unique().tolist())
 ]
 selected_subreddit = st.sidebar.selectbox("Select a subreddit:", subreddit_list)
 
+# Filter monthly frequencies by selected subreddit
 if selected_subreddit != "All Subreddits":
-    filtered_df = df[
-        df["subreddit"] == selected_subreddit[2:]
+    filtered_df = monthly_frequencies[
+        monthly_frequencies["subreddit"] == selected_subreddit[2:]
     ]  # Adjusting for "r/" prefix
 else:
-    filtered_df = df
+    filtered_df = monthly_frequencies
 
-# Make the frequency plot
+# Display the frequency chart
 st.title("Cluster Frequency Over Time")
 st.altair_chart(create_chart(filtered_df), use_container_width=True)
 
-# Dropdown for selecting a cluster
+# Dropdown for selecting a cluster to view title and summary
 cluster_options = ["Select a Cluster"] + sorted(df["cluster"].unique(), key=int)
 cluster_options = [str(cluster) for cluster in cluster_options]
 selected_cluster_option = st.selectbox("Select a cluster:", cluster_options)
 
 # Display the title and summary for the selected cluster
 if selected_cluster_option != "Select a Cluster":
-    selected_cluster = int(
-        selected_cluster_option
-    )  # Convert selected cluster back to int for filtering
+    selected_cluster = int(selected_cluster_option)
     if selected_cluster in cluster_info_df["cluster"].values:
-        # Fetching the title and summary for the selected cluster
         cluster_title = cluster_info_df[cluster_info_df["cluster"] == selected_cluster][
             "title"
         ].iloc[0]
@@ -122,18 +129,15 @@ if selected_cluster_option != "Select a Cluster":
             cluster_info_df["cluster"] == selected_cluster
         ]["summary"].iloc[0]
 
-        # Displaying the title and summary
-        st.write(f"**Title:** {cluster_title}")
-        st.write(f"**Summary:** {cluster_summary}")
+        st.write(f"**Title:** \n{cluster_title}")
+        st.write(f"**Summary:** \n{cluster_summary}")
 
-        # Load and display texts where is_central_member is True for the selected cluster
+        # Load and display texts for the selected cluster
         texts_df = load_texts_for_cluster(selected_cluster)
         if not texts_df.empty:
-            st.write("**Sample reddit posts and comments:**")
+            st.write(
+                "**No sample reddit posts and comments are available for this cluster.**"
+            )
             st.table(texts_df)
         else:
-            st.write(
-                "No sample reddit posts and comments are available for this cluster."
-            )
-    else:
-        st.write("No information available for the selected cluster.")
+            st.write("No sample reddit posts are available for this cluster.")
