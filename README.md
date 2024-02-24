@@ -3,4 +3,4 @@ A streamlit visualization of LDS discourse on homosexuality over the last few de
 
 The data for the visualization was produced with a dagster pipeline from (this repo.)[https://github.com/Joe-Koch/mormon-queer-analysis]
 
-This streamlit app is deployed for free with streamlit share. 
+This streamlit app is deployed for free with (streamlit share)[https://share.streamlit.io/]. 
