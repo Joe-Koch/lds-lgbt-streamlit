@@ -64,7 +64,7 @@ def load_texts_for_cluster(selected_title, cluster_info_df):
 # Create an interactive Altair chart
 def create_chart(df, subreddit):
     chart_title = (
-        f"Cluster Frequency Over Time for subreddit r/{subreddit}"
+        f"Cluster Frequency Over Time for Subreddit r/{subreddit}"
         if subreddit != "All Subreddits"
         else "Cluster Frequency Over Time"
     )
@@ -104,7 +104,6 @@ clusters_to_include = {
     12,
     13,
     15,
-    16,
     17,
     18,
     19,
